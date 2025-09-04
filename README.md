@@ -17,17 +17,17 @@ A simple Arduino-based system that automatically activates a backup camera when 
 - Arduino board (tested with Arduino Uno/Nano)
 - 12V Camera with MOSFET control
 - Reverse gear switch (normally open)
-- Manual camera activation button
+- Capacitive touch button (3-pin: GND, VCC, I/O)
 - MOSFET module for 12V camera control
-- Pull-up resistors (internal Arduino pull-ups used)
+- Resistors: 4.7kΩ and 1kΩ for reverse gear voltage divider
 
 ## Pin Configuration
 
-| Pin | Function          | Type            | Description                                       |
-| --- | ----------------- | --------------- | ------------------------------------------------- |
-| D3  | REVERSE_GEAR_PIN  | Input (Pull-up) | Reverse gear switch input (LOW = reverse engaged) |
-| D4  | CAMERA_MOSFET_PIN | Output          | Camera 12V MOSFET control (HIGH = camera on)      |
-| D5  | CAMERA_BUTTON_PIN | Input (Pull-up) | Manual camera activation button (LOW = pressed)   |
+| Pin | Function          | Type             | Description                                       |
+| --- | ----------------- | ---------------- | ------------------------------------------------- |
+| D3  | REVERSE_GEAR_PIN  | Input (Pull-up)  | Reverse gear switch input (LOW = reverse engaged) |
+| D4  | CAMERA_MOSFET_PIN | Output           | Camera 12V MOSFET control (HIGH = camera on)      |
+| D5  | CAMERA_BUTTON_PIN | Input (External) | Capacitive touch button I/O pin (HIGH = touched)  |
 
 **Note**: Pin D2 is avoided as it may be damaged on some boards.
 
@@ -35,20 +35,45 @@ A simple Arduino-based system that automatically activates a backup camera when 
 
 ```
 Arduino Uno/Nano
-├── D3 ──┐
-│        │
-│        └── Reverse Gear Switch ── GND
+├── D3 ── 1kΩ ──┐
+│               │
+│               └── Reverse Gear Switch ── GND
+│               │
+│               └── 4.7kΩ ── +5V
 │
 ├── D4 ── MOSFET Gate
 │        MOSFET Source ── GND
 │        MOSFET Drain ── Camera 12V+
 │
-├── D5 ──┐
-│        │
-│        └── Manual Button ── GND
+├── D5 ── Capacitive Touch Button I/O
+│
+├── +5V ── Capacitive Touch Button VCC
+│
+├── GND ── Capacitive Touch Button GND
 │
 └── GND ── Common Ground
 ```
+
+### Wiring Details
+
+**Reverse Gear Switch (D3)**:
+
+- Uses voltage divider circuit for reliable detection
+- 4.7kΩ resistor from D3 to +5V (pull-up)
+- 1kΩ resistor in series with switch
+- Switch connects to GND when reverse engaged
+- When reverse engaged: D3 reads LOW (through 1kΩ)
+- When not in reverse: D3 reads HIGH (through 4.7kΩ)
+
+**Capacitive Touch Button (D5)**:
+
+- 3-pin capacitive touch sensor
+- VCC pin connected to Arduino +5V
+- GND pin connected to Arduino GND
+- I/O pin connected to Arduino D5
+- Built-in pull-up resistor and touch detection
+- When touched: I/O pin reads HIGH
+- When not touched: I/O pin reads LOW
 
 ## Software Architecture
 
@@ -153,15 +178,24 @@ Camera turned off - auto timeout (1 minute)
 
 ### Reverse Gear Not Detected
 
-- Verify switch connection between D3 and GND
+- Verify voltage divider circuit:
+  - 4.7kΩ resistor from D3 to +5V
+  - 1kΩ resistor in series with switch
+  - Switch connects to GND when reverse engaged
 - Check that switch is normally open (closed when reverse engaged)
+- Measure voltage at D3: should be ~5V when not in reverse, ~0.8V when in reverse
 - Monitor Serial output for gear state changes
 
-### Button Not Working
+### Capacitive Touch Button Not Working
 
-- Check button connection between D5 and GND
-- Verify button is normally open (closed when pressed)
-- Check debounce timing in Serial output
+- Verify 3-pin connections:
+  - VCC pin to Arduino +5V
+  - GND pin to Arduino GND
+  - I/O pin to Arduino D5
+- Check that capacitive button is powered (VCC connected)
+- Test touch sensitivity - some buttons require direct finger contact
+- Monitor Serial output for touch detection
+- Ensure button is not damaged or defective
 
 ### Camera Stays On
 

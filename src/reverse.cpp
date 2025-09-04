@@ -8,8 +8,8 @@ const unsigned long REVERSE_GEAR_DEBOUNCE_MS = 100;
 const int CAMERA_MOSFET_PIN = 4; // D4: Camera 12V MOSFET control
 const int CAMERA_BUTTON_PIN = 5; // D5: Manual camera activation button
 const unsigned long CAMERA_BUTTON_DEBOUNCE_MS = 100;
-const unsigned long CAMERA_AUTO_OFF_TIMEOUT_MS = 60000; // 1 minute (60 seconds)
-const unsigned long CAMERA_MANUAL_TIMEOUT_MS = 15000;   // 15 seconds
+const unsigned long CAMERA_AUTO_OFF_TIMEOUT_MS = 30000; // 30 seconds
+const unsigned long CAMERA_MANUAL_TIMEOUT_MS = 60000;   // 15 seconds
 
 // Reverse gear state variables
 static bool reverseGearEngaged = false;
@@ -27,7 +27,10 @@ static unsigned long cameraLastDebounceTime = 0;
 
 void setupReverse() {
   // Setup reverse gear detection
-  pinMode(REVERSE_GEAR_PIN, INPUT_PULLUP);  // use internal pull-up
+  // Note: Uses external voltage divider (4.7kΩ pull-up + 1kΩ series resistor)
+  // When reverse engaged: switch closes, pin reads LOW through 1kΩ resistor
+  // When not in reverse: switch open, pin reads HIGH through 4.7kΩ pull-up
+  pinMode(REVERSE_GEAR_PIN, INPUT);  // No internal pull-up, using external voltage divider
 
   // read initial state
   reverseLastRawReading = digitalRead(REVERSE_GEAR_PIN);
@@ -42,8 +45,10 @@ void setupReverse() {
   pinMode(CAMERA_MOSFET_PIN, OUTPUT);
   digitalWrite(CAMERA_MOSFET_PIN, LOW); // Ensure camera is off initially
 
-  // Set camera button pin as input with internal pull-up resistor
-  pinMode(CAMERA_BUTTON_PIN, INPUT_PULLUP);
+  // Set camera button pin as input (capacitive touch button with external pull-up)
+  // Capacitive touch button: GND, VCC, I/O pins
+  // I/O pin connected to Arduino input, VCC to +5V, GND to ground
+  pinMode(CAMERA_BUTTON_PIN, INPUT); // No internal pull-up, capacitive button has its own pull-up
 }
 
 void handleReverse() {
@@ -80,14 +85,15 @@ void handleReverse() {
   }
 
   if ((millis() - cameraLastDebounceTime) > CAMERA_BUTTON_DEBOUNCE_MS) {
-    // Check if the button is pressed (LOW) and camera is not currently active
-    if (buttonState == LOW && !cameraIsActive) {
+    // Check if the capacitive touch button is touched (HIGH) and camera is not currently active
+    // Note: This capacitive touch button reads HIGH when touched, LOW when not touched
+    if (buttonState == HIGH && !cameraIsActive) {
       cameraIsActive = true;
       cameraActivatedByButton = true;
       cameraActivatedByReverse = false;
       cameraStartTime = millis();
       digitalWrite(CAMERA_MOSFET_PIN, HIGH);
-      Serial.println("Camera activated by manual button!");
+      Serial.println("Camera activated by capacitive touch button!");
     }
   }
 
