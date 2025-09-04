@@ -7,7 +7,7 @@ const unsigned long REVERSE_GEAR_DEBOUNCE_MS = 100;
 // Camera configuration
 const int CAMERA_MOSFET_PIN = 4; // D4: Camera 12V MOSFET control
 const int CAMERA_BUTTON_PIN = 5; // D5: Manual camera activation button
-const unsigned long CAMERA_BUTTON_DEBOUNCE_MS = 100;
+const unsigned long CAMERA_BUTTON_DEBOUNCE_MS = 200;
 const unsigned long CAMERA_AUTO_OFF_TIMEOUT_MS = 30000; // 30 seconds
 const unsigned long CAMERA_MANUAL_TIMEOUT_MS = 60000;   // 15 seconds
 
