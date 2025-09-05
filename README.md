@@ -35,11 +35,11 @@ A simple Arduino-based system that automatically activates a backup camera when 
 
 ```
 Arduino Uno/Nano
-├── D3 ── 1kΩ ──┐
-│               │
-│               └── Reverse Gear Switch ── GND
-│               │
-│               └── 4.7kΩ ── +5V
+├── D3 (green) ── 1kΩ ──┐
+│                       │
+│                       └── Reverse Gear Switch ── GND
+│                       │
+│                       └── 4.7kΩ ── +5V
 │
 ├── D4 ── MOSFET Gate
 │        MOSFET Source ── GND
