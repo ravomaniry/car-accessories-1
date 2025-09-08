@@ -1,14 +1,16 @@
 # Car Accessories System
 
-A simple Arduino-based system that automatically activates a backup camera when reverse gear is engaged, with additional manual control capabilities.
+A simple Arduino-based system that automatically activates a backup camera when reverse gear is engaged, with additional manual control capabilities and horn control.
 
 ## Features
 
 - **Automatic Camera Activation**: Camera turns on automatically when reverse gear is engaged
 - **Manual Camera Control**: Manual button to activate camera for 15 seconds
+- **Horn Control**: Capacitive touch button for horn activation with MOSFET control
 - **Smart Timeout Logic**:
   - Manual activation: 15-second timeout
   - Reverse gear activation: 1-minute timeout after reverse is disengaged
+  - Horn: Maximum 5-second continuous operation for safety
 - **Debounced Inputs**: Reliable detection of reverse gear and button presses
 - **Serial Debugging**: Status messages via Serial output
 
@@ -16,18 +18,22 @@ A simple Arduino-based system that automatically activates a backup camera when 
 
 - Arduino board (tested with Arduino Uno/Nano)
 - 12V Camera with MOSFET control
+- 12V Horn with MOSFET control
 - Reverse gear switch (normally open)
-- Capacitive touch button (3-pin: GND, VCC, I/O)
-- MOSFET module for 12V camera control
+- Capacitive touch button for camera (3-pin: GND, VCC, I/O)
+- Capacitive touch button for horn (3-pin: GND, VCC, I/O)
+- MOSFET modules for 12V camera and horn control
 - Resistors: 4.7kΩ and 1kΩ for reverse gear voltage divider
 
 ## Pin Configuration
 
-| Pin | Function          | Type             | Description                                       |
-| --- | ----------------- | ---------------- | ------------------------------------------------- |
-| D3  | REVERSE_GEAR_PIN  | Input (Pull-up)  | Reverse gear switch input (LOW = reverse engaged) |
-| D4  | CAMERA_MOSFET_PIN | Output           | Camera 12V MOSFET control (HIGH = camera on)      |
-| D5  | CAMERA_BUTTON_PIN | Input (External) | Capacitive touch button I/O pin (HIGH = touched)  |
+| Pin | Function          | Type             | Description                                             |
+| --- | ----------------- | ---------------- | ------------------------------------------------------- |
+| D3  | REVERSE_GEAR_PIN  | Input (Pull-up)  | Reverse gear switch input (LOW = reverse engaged)       |
+| D4  | CAMERA_MOSFET_PIN | Output           | Camera 12V MOSFET control (HIGH = camera on)            |
+| D5  | CAMERA_BUTTON_PIN | Input (External) | Camera capacitive touch button I/O pin (HIGH = touched) |
+| D6  | HORN_BUTTON_PIN   | Input (External) | Horn capacitive touch button I/O pin (HIGH = touched)   |
+| D7  | HORN_MOSFET_PIN   | Output           | Horn 12V MOSFET control (HIGH = horn on)                |
 
 **Note**: Pin D2 is avoided as it may be damaged on some boards.
 
@@ -41,15 +47,21 @@ Arduino Uno/Nano
 │                       │
 │                       └── 4.7kΩ ── +5V
 │
-├── D4 ── MOSFET Gate
-│        MOSFET Source ── GND
-│        MOSFET Drain ── Camera 12V+
+├── D4 ── Camera MOSFET Gate
+│        Camera MOSFET Source ── GND
+│        Camera MOSFET Drain ── Camera 12V+
 │
-├── D5 ── Capacitive Touch Button I/O
+├── D5 ── Camera Capacitive Touch Button I/O
 │
-├── +5V ── Capacitive Touch Button VCC
+├── D6 ── Horn Capacitive Touch Button I/O
 │
-├── GND ── Capacitive Touch Button GND
+├── D7 ── Horn MOSFET Gate
+│        Horn MOSFET Source ── GND
+│        Horn MOSFET Drain ── Horn 12V+
+│
+├── +5V ── Capacitive Touch Buttons VCC
+│
+├── GND ── Capacitive Touch Buttons GND
 │
 └── GND ── Common Ground
 ```
@@ -65,12 +77,22 @@ Arduino Uno/Nano
 - When reverse engaged: D3 reads LOW (through 1kΩ)
 - When not in reverse: D3 reads HIGH (through 4.7kΩ)
 
-**Capacitive Touch Button (D5)**:
+**Camera Capacitive Touch Button (D5)**:
 
 - 3-pin capacitive touch sensor
 - VCC pin connected to Arduino +5V
 - GND pin connected to Arduino GND
 - I/O pin connected to Arduino D5
+- Built-in pull-up resistor and touch detection
+- When touched: I/O pin reads HIGH
+- When not touched: I/O pin reads LOW
+
+**Horn Capacitive Touch Button (D6)**:
+
+- 3-pin capacitive touch sensor
+- VCC pin connected to Arduino +5V
+- GND pin connected to Arduino GND
+- I/O pin connected to Arduino D6
 - Built-in pull-up resistor and touch detection
 - When touched: I/O pin reads HIGH
 - When not touched: I/O pin reads LOW
@@ -82,16 +104,20 @@ Arduino Uno/Nano
 - `main.cpp` - Main program entry point
 - `reverse.h` - Header file with function declarations and constants
 - `reverse.cpp` - Implementation of reverse gear detection and camera control
+- `horn.h` - Header file with horn function declarations and constants
+- `horn.cpp` - Implementation of horn control with capacitive button and MOSFET
 
 ### Key Functions
 
 #### Setup Functions
 
 - `setupReverse()` - Initialize all pins and initial states
+- `setupHorn()` - Initialize horn pins and initial states
 
 #### Main Loop Functions
 
 - `handleReverse()` - Main function called in loop() to handle all logic
+- `handleHorn()` - Main function called in loop() to handle horn logic
 
 #### Reverse Gear Functions
 
@@ -103,6 +129,12 @@ Arduino Uno/Nano
 - `deactivateCameraByReverse()` - Start timeout countdown when reverse disengaged
 - `isCameraActive()` - Returns current camera state
 
+#### Horn Functions
+
+- `activateHorn()` - Activate horn
+- `deactivateHorn()` - Deactivate horn
+- `isHornActive()` - Returns current horn state
+
 ## Configuration Constants
 
 ```cpp
@@ -110,12 +142,16 @@ Arduino Uno/Nano
 const byte REVERSE_GEAR_PIN = 3;
 const int CAMERA_MOSFET_PIN = 4;
 const int CAMERA_BUTTON_PIN = 5;
+const int HORN_BUTTON_PIN = 6;
+const int HORN_MOSFET_PIN = 7;
 
 // Timing constants
 const unsigned long REVERSE_GEAR_DEBOUNCE_MS = 100;
 const unsigned long CAMERA_BUTTON_DEBOUNCE_MS = 100;
 const unsigned long CAMERA_AUTO_OFF_TIMEOUT_MS = 60000;  // 1 minute
 const unsigned long CAMERA_MANUAL_TIMEOUT_MS = 15000;    // 15 seconds
+const unsigned long HORN_BUTTON_DEBOUNCE_MS = 100;
+const unsigned long HORN_MAX_DURATION_MS = 5000;         // 5 seconds
 ```
 
 ## Operation Modes
@@ -133,11 +169,19 @@ const unsigned long CAMERA_MANUAL_TIMEOUT_MS = 15000;    // 15 seconds
 - Camera runs for 15 seconds then automatically turns off
 - Manual activation overrides reverse gear timeout
 
-### 3. Combined Mode
+### 3. Horn Mode
 
-- Both modes can work together
-- Manual activation takes priority over reverse gear timeout
-- Camera state is properly managed between both modes
+- Press and hold capacitive touch button to activate horn
+- Horn runs while button is pressed
+- Maximum 5-second continuous operation for safety
+- Horn turns off when button is released or timeout reached
+
+### 4. Combined Mode
+
+- All modes can work together independently
+- Manual camera activation takes priority over reverse gear timeout
+- Horn operates independently of camera system
+- Camera and horn states are properly managed separately
 
 ## Serial Output
 
@@ -146,12 +190,16 @@ The system provides debug information via Serial (9600 baud):
 ```
 Car Accessories System Starting...
 Reverse gear and camera module initialized
+Horn module initialized
 System ready!
 Camera activated by reverse gear!
 Reverse gear disengaged - camera will turn off in 1 minute
 Camera activated by manual button!
 Camera turned off - manual timeout (15 seconds)
 Camera turned off - auto timeout (1 minute)
+Horn activated!
+Horn deactivated!
+Horn turned off - maximum duration reached (5 seconds)
 ```
 
 ## Installation
@@ -159,14 +207,17 @@ Camera turned off - auto timeout (1 minute)
 1. **Hardware Setup**:
 
    - Connect reverse gear switch between D3 and GND
-   - Connect MOSFET gate to D4
+   - Connect camera MOSFET gate to D4
    - Connect camera button between D5 and GND
-   - Connect 12V camera to MOSFET drain and GND
+   - Connect 12V camera to camera MOSFET drain and GND
+   - Connect horn capacitive touch button to D6, +5V, and GND
+   - Connect horn MOSFET gate to D7
+   - Connect 12V horn to horn MOSFET drain and GND
 
 2. **Software Setup**:
    - Upload the code to your Arduino
    - Open Serial Monitor at 9600 baud to see debug messages
-   - Test reverse gear detection and manual button
+   - Test reverse gear detection, camera button, and horn button
 
 ## Troubleshooting
 
@@ -203,40 +254,69 @@ Camera turned off - auto timeout (1 minute)
 - Verify reverse gear detection is working
 - Manual button may be stuck (check physical button)
 
+### Horn Not Working
+
+- Check MOSFET connections (D7 to gate, 12V to drain)
+- Verify horn power supply (12V)
+- Check Serial output for horn activation messages
+- Verify capacitive touch button connections:
+  - VCC pin to Arduino +5V
+  - GND pin to Arduino GND
+  - I/O pin to Arduino D6
+- Test touch sensitivity - some buttons require direct finger contact
+- Ensure button is not damaged or defective
+
+### Horn Stays On
+
+- Check that capacitive touch button is not stuck
+- Verify button release detection in Serial output
+- Check for timeout safety mechanism (5-second limit)
+
 ## Customization
 
 ### Changing Timeouts
 
-Modify these constants in `reverse.cpp`:
+Modify these constants in `reverse.cpp` and `horn.cpp`:
 
 ```cpp
+// In reverse.cpp
 const unsigned long CAMERA_AUTO_OFF_TIMEOUT_MS = 60000;  // 1 minute
 const unsigned long CAMERA_MANUAL_TIMEOUT_MS = 15000;    // 15 seconds
+
+// In horn.cpp
+const unsigned long HORN_MAX_DURATION_MS = 5000;         // 5 seconds
 ```
 
 ### Changing Pin Assignments
 
-Update pin constants in `reverse.cpp`:
+Update pin constants in `reverse.cpp` and `horn.cpp`:
 
 ```cpp
+// In reverse.cpp
 const byte REVERSE_GEAR_PIN = 3;
 const int CAMERA_MOSFET_PIN = 4;
 const int CAMERA_BUTTON_PIN = 5;
+
+// In horn.cpp
+const int HORN_BUTTON_PIN = 6;
+const int HORN_MOSFET_PIN = 7;
 ```
 
 ### Adding Features
 
-- LED indicators for camera status
+- LED indicators for camera and horn status
 - Multiple camera support
+- Horn patterns (short beeps, long beeps)
 - Remote control integration
 - Data logging capabilities
 
 ## Safety Notes
 
-- Ensure proper 12V isolation for camera circuit
-- Use appropriate MOSFET ratings for your camera current
+- Ensure proper 12V isolation for camera and horn circuits
+- Use appropriate MOSFET ratings for your camera and horn current
 - Test all connections before final installation
 - Consider adding fuses for 12V circuit protection
+- Horn has built-in 5-second safety timeout to prevent damage
 
 ## License
 
@@ -247,3 +327,4 @@ This project is open source. Feel free to modify and distribute as needed.
 - v1.0 - Initial release with basic reverse gear and camera control
 - v1.1 - Merged separate modules into single reverse.cpp file
 - v1.2 - Updated pin assignments to avoid broken pin D2
+- v1.3 - Added horn support with capacitive button and MOSFET control

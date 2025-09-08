@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "reverse.h"
+#include "horn.h"
 
 void setup() {
   // Initialize serial communication for debugging
@@ -10,12 +11,19 @@ void setup() {
   setupReverse();
   Serial.println("Reverse gear and camera module initialized");
   
+  // Initialize horn module
+  setupHorn();
+  Serial.println("Horn module initialized");
+  
   Serial.println("System ready!");
 }
 
 void loop() {
   // Handle reverse gear detection, camera activation, and camera controls
   handleReverse();
+  
+  // Handle horn control
+  handleHorn();
   
   // Small delay to prevent overwhelming the system
   delay(10);
