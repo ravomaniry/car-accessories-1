@@ -3,7 +3,7 @@
 // Horn configuration
 const int HORN_BUTTON_PIN = 6; // D6: Capacitive touch button for horn activation
 const int HORN_MOSFET_PIN = 7; // D7: Horn 12V MOSFET control
-const unsigned long HORN_BUTTON_DEBOUNCE_MS = 100;
+const unsigned long HORN_BUTTON_DEBOUNCE_MS = 5;
 const unsigned long HORN_MAX_DURATION_MS = 5000; // Maximum 5 seconds continuous horn
 
 // Horn state variables
