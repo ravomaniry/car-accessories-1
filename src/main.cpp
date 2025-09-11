@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "reverse.h"
 #include "horn.h"
+#include "gps.h"
 
 void setup() {
   // Initialize serial communication for debugging
@@ -15,6 +16,10 @@ void setup() {
   setupHorn();
   Serial.println("Horn module initialized");
   
+  // Initialize GPS module
+  setupGPS();
+  Serial.println("GPS module initialized");
+  
   Serial.println("System ready!");
 }
 
@@ -24,6 +29,9 @@ void loop() {
   
   // Handle horn control
   handleHorn();
+  
+  // Handle GPS data collection and transmission
+  handleGPS();
   
   // Small delay to prevent overwhelming the system
   delay(10);
