@@ -5,7 +5,7 @@
 
 void setup() {
   // Initialize serial communication for debugging
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println("Car Accessories System Starting...");
   
   // Initialize reverse gear and camera module
