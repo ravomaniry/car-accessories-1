@@ -49,6 +49,9 @@ void setupReverse() {
   // Capacitive touch button: GND, VCC, I/O pins
   // I/O pin connected to Arduino input, VCC to +5V, GND to ground
   pinMode(CAMERA_BUTTON_PIN, INPUT); // No internal pull-up, capacitive button has its own pull-up
+  
+  // Send initial reverse gear status
+  sendReverseStatus();
 }
 
 void handleReverse() {
@@ -138,6 +141,8 @@ void activateCameraByReverse() {
     digitalWrite(CAMERA_MOSFET_PIN, HIGH);
     Serial.println("Camera activated by reverse gear!");
   }
+  // Always send reverse gear status when engaged
+  Serial.println("REVERSE:1");
 }
 
 void deactivateCameraByReverse() {
@@ -146,9 +151,20 @@ void deactivateCameraByReverse() {
     cameraActivatedByReverse = false;
     cameraStartTime = millis(); // Reset timer for auto-off
     Serial.println("Reverse gear disengaged - camera will turn off in 1 minute");
+    // Send reverse gear status
+    Serial.println("REVERSE:0");
   }
 }
 
 bool isCameraActive() {
   return cameraIsActive;
+}
+
+void sendReverseStatus() {
+  // Send current reverse gear status in KEY:VALUE format
+  if (reverseGearEngaged) {
+    Serial.println("REVERSE:1");
+  } else {
+    Serial.println("REVERSE:0");
+  }
 }

@@ -18,6 +18,7 @@ extern const unsigned long CAMERA_MANUAL_TIMEOUT_MS;
 void setupReverse();
 void handleReverse();
 bool isReverseGearEngaged();
+void sendReverseStatus();
 
 // Camera functions
 void activateCameraByReverse();
