@@ -69,12 +69,18 @@ void handleReverse() {
       // For reverse gear switch: LOW = reverse engaged, HIGH = not in reverse
       reverseGearEngaged = (reverseStableState == LOW);
 
+      // Send reverse status immediately when state change is stable
+      sendReverseStatus();
+
       // Handle camera activation based on reverse gear
       if (reverseGearEngaged) {
         activateCameraByReverse();
       } else {
         deactivateCameraByReverse();
       }
+      
+      // Reset the debounce timer after state change to prevent immediate re-triggering
+      reverseLastChangeMillis = millis();
     }
   }
 
@@ -140,19 +146,22 @@ void activateCameraByReverse() {
     cameraStartTime = millis();
     digitalWrite(CAMERA_MOSFET_PIN, HIGH);
     Serial.println("Camera activated by reverse gear!");
+  } else {
+    // Camera is already active (e.g., counting down from previous disengagement)
+    // Reset it to reverse-activated mode to cancel any countdown
+    cameraActivatedByReverse = true;
+    cameraActivatedByButton = false;
+    cameraStartTime = millis(); // Reset timer
+    Serial.println("Camera reactivated by reverse gear (was counting down)!");
   }
-  // Always send reverse gear status when engaged
-  Serial.println("REVERSE:1");
 }
 
 void deactivateCameraByReverse() {
   if (cameraActivatedByReverse) {
-    // Reverse gear disengaged - start 1 minute countdown to turn off camera
+    // Reverse gear disengaged - start timeout countdown to turn off camera
     cameraActivatedByReverse = false;
     cameraStartTime = millis(); // Reset timer for auto-off
-    Serial.println("Reverse gear disengaged - camera will turn off in 1 minute");
-    // Send reverse gear status
-    Serial.println("REVERSE:0");
+    Serial.println("Reverse gear disengaged - camera will turn off in 30 seconds");
   }
 }
 
