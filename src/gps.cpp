@@ -20,33 +20,14 @@ void setupGPS() {
   // Initialize GPS serial communication
   gpsSerial.begin(GPS_BAUD_RATE);
   
-  Serial.println("GPS module initialized");
-  Serial.println("Waiting for GPS signal...");
-  Serial.println("Debug: GPS serial communication started on pins D9(RX) and D8(TX)");
-  
-  // Test GPS connection
-  delay(1000);
-  Serial.println("Testing GPS connection...");
-  if (gpsSerial.available()) {
-    Serial.println("SUCCESS: GPS data detected!");
-  } else {
-    Serial.println("WARNING: No GPS data detected - check wiring!");
-  }
-  
   // Reset last update time
   lastGPSUpdate = millis();
 }
 
 void handleGPS() {
-  static unsigned long lastDebugTime = 0;
-  static int rawDataCount = 0;
-  static int parsedDataCount = 0;
-  
   // Read GPS data from serial
   while (gpsSerial.available() > 0) {
-    rawDataCount++;
     if (gps.encode(gpsSerial.read())) {
-      parsedDataCount++;
       // GPS data successfully parsed
       if (gps.location.isValid()) {
         lastLatitude = gps.location.lat();
@@ -57,31 +38,6 @@ void handleGPS() {
         lastSpeed = gps.speed.kmph(); // Speed in km/h
       }
     }
-  }
-  
-  // Debug information every 5 seconds
-  if (millis() - lastDebugTime >= 5000) {
-    Serial.print("Debug: GPS raw data received: ");
-    Serial.print(rawDataCount);
-    Serial.print(", parsed sentences: ");
-    Serial.print(parsedDataCount);
-    Serial.print(", satellites: ");
-    Serial.print(gps.satellites.value());
-    Serial.print(", location valid: ");
-    Serial.print(gps.location.isValid() ? "YES" : "NO");
-    Serial.print(", speed valid: ");
-    Serial.print(gps.speed.isValid() ? "YES" : "NO");
-    if (gps.location.isValid()) {
-      Serial.print(", lat: ");
-      Serial.print(gps.location.lat(), 6);
-      Serial.print(", lng: ");
-      Serial.print(gps.location.lng(), 6);
-    }
-    Serial.println();
-    
-    lastDebugTime = millis();
-    rawDataCount = 0;
-    parsedDataCount = 0;
   }
   
   // Send GPS data at regular intervals
