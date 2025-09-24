@@ -1,6 +1,6 @@
 # Car Accessories System
 
-A comprehensive Arduino-based car accessories system that automatically activates a backup camera when reverse gear is engaged, with manual control capabilities, horn control, and GPS tracking functionality.
+A comprehensive Arduino-based car accessories system that automatically activates a backup camera when reverse gear is engaged, with manual control capabilities, horn control, GPS tracking functionality, and power management for accessories.
 
 ## Features
 
@@ -8,12 +8,14 @@ A comprehensive Arduino-based car accessories system that automatically activate
 - **Manual Camera Control**: Manual button to activate camera for 15 seconds
 - **Horn Control**: Capacitive touch button for horn activation with MOSFET control
 - **GPS Tracking**: Real-time speed and location tracking using NEO-6M GPS module
+- **Power Management**: Autoradio power control via MOSFET with 60-second startup delay
 - **Serial Communication**: GPS data transmission in format `SPEED:value, LOCATION:lat,lng`
 - **ESP32 Integration**: Hardware serial pins reserved for ESP32 communication
 - **Smart Timeout Logic**:
   - Manual activation: 15-second timeout
   - Reverse gear activation: 1-minute timeout after reverse is disengaged
   - Horn: Maximum 5-second continuous operation for safety
+  - Autoradio: 60-second startup delay before power activation
 - **Debounced Inputs**: Reliable detection of reverse gear and button presses
 - **Serial Debugging**: Status messages via Serial output
 
@@ -22,32 +24,33 @@ A comprehensive Arduino-based car accessories system that automatically activate
 - Arduino board (tested with Arduino Uno/Nano)
 - 12V Camera with MOSFET control
 - 12V Horn with MOSFET control
+- 12V Autoradio with MOSFET control
 - NEO-6M GPS module
 - Reverse gear switch (normally open)
 - Capacitive touch button for camera (3-pin: GND, VCC, I/O)
 - Capacitive touch button for horn (3-pin: GND, VCC, I/O)
-- MOSFET modules for 12V camera and horn control
+- MOSFET modules for 12V camera, horn, and autoradio control
 - Resistors: 4.7kΩ and 1kΩ for reverse gear voltage divider
 - ESP32 (optional, for advanced communication)
 
 ## Pin Configuration
 
-| Pin | Function          | Type             | Description                                             |
-| --- | ----------------- | ---------------- | ------------------------------------------------------- |
-| D0  | Serial RX         | Hardware Serial  | ESP32 TX (reserved for ESP32 communication)             |
-| D1  | Serial TX         | Hardware Serial  | ESP32 RX (reserved for ESP32 communication)             |
-| D2  | Available         | -                | Available for future use                                |
-| D3  | REVERSE_GEAR_PIN  | Input (Pull-up)  | Reverse gear switch input (LOW = reverse engaged)       |
-| D4  | CAMERA_MOSFET_PIN | Output           | Camera 12V MOSFET control (HIGH = camera on)            |
-| D5  | CAMERA_BUTTON_PIN | Input (External) | Camera capacitive touch button I/O pin (HIGH = touched) |
-| D6  | HORN_BUTTON_PIN   | Input (External) | Horn capacitive touch button I/O pin (HIGH = touched)   |
-| D7  | HORN_MOSFET_PIN   | Output           | Horn 12V MOSFET control (HIGH = horn on)                |
-| D8  | GPS_TX_PIN        | Software Serial  | GPS RX pin (to NEO-6M GPS module)                       |
-| D9  | GPS_RX_PIN        | Software Serial  | GPS TX pin (from NEO-6M GPS module)                     |
-| D10 | Available         | -                | Available for future use                                |
-| D11 | Available         | -                | Available for future use                                |
-| D12 | Available         | -                | Available for future use                                |
-| D13 | Available         | -                | Available for future use                                |
+| Pin | Function             | Type             | Description                                             |
+| --- | -------------------- | ---------------- | ------------------------------------------------------- |
+| D0  | Serial RX            | Hardware Serial  | ESP32 TX (reserved for ESP32 communication)             |
+| D1  | Serial TX            | Hardware Serial  | ESP32 RX (reserved for ESP32 communication)             |
+| D2  | Available            | -                | Available for future use                                |
+| D3  | REVERSE_GEAR_PIN     | Input (Pull-up)  | Reverse gear switch input (LOW = reverse engaged)       |
+| D4  | CAMERA_MOSFET_PIN    | Output           | Camera 12V MOSFET control (HIGH = camera on)            |
+| D5  | CAMERA_BUTTON_PIN    | Input (External) | Camera capacitive touch button I/O pin (HIGH = touched) |
+| D6  | HORN_BUTTON_PIN      | Input (External) | Horn capacitive touch button I/O pin (HIGH = touched)   |
+| D7  | HORN_MOSFET_PIN      | Output           | Horn 12V MOSFET control (HIGH = horn on)                |
+| D8  | GPS_TX_PIN           | Software Serial  | GPS RX pin (to NEO-6M GPS module)                       |
+| D9  | GPS_RX_PIN           | Software Serial  | GPS TX pin (from NEO-6M GPS module)                     |
+| D10 | AUTORADIO_MOSFET_PIN | Output           | Autoradio 12V MOSFET control (HIGH = autoradio on)      |
+| D11 | Available            | -                | Available for future use                                |
+| D12 | Available            | -                | Available for future use                                |
+| D13 | Available            | -                | Available for future use                                |
 
 **Note**: Pin D2 is avoided as it may be damaged on some boards. Hardware serial pins (D0/D1) are reserved for ESP32 communication.
 
@@ -78,6 +81,10 @@ Arduino Uno/Nano
 │
 ├── D8 ── GPS RX (to NEO-6M)
 ├── D9 ── GPS TX (from NEO-6M)
+│
+├── D10 ── Autoradio MOSFET Gate
+│         Autoradio MOSFET Source ── GND
+│         Autoradio MOSFET Drain ── Autoradio 12V+
 │
 ├── +5V ── Capacitive Touch Buttons VCC
 ├── +5V ── GPS VCC
@@ -131,6 +138,16 @@ Arduino Uno/Nano
 - Default baud rate: 9600
 - Provides real-time speed and location data
 
+**Autoradio MOSFET Control (D10)**:
+
+- MOSFET gate connected to Arduino D10
+- MOSFET source connected to GND
+- MOSFET drain connected to autoradio 12V+ supply
+- Autoradio GND connected to common ground
+- Autoradio powers on automatically after 60-second delay
+- HIGH signal on D10 enables autoradio power
+- LOW signal on D10 disables autoradio power
+
 **ESP32 Communication (D0, D1)**:
 
 - Hardware serial communication
@@ -141,52 +158,12 @@ Arduino Uno/Nano
 
 ## Software Architecture
 
-### Files Structure
+The system is organized into modular components:
 
-- `main.cpp` - Main program entry point
-- `reverse.h` - Header file with function declarations and constants
-- `reverse.cpp` - Implementation of reverse gear detection and camera control
-- `horn.h` - Header file with horn function declarations and constants
-- `horn.cpp` - Implementation of horn control with capacitive button and MOSFET
-- `gps.h` - Header file with GPS function declarations and constants
-- `gps.cpp` - Implementation of GPS tracking with NEO-6M module
-
-### Key Functions
-
-#### Setup Functions
-
-- `setupReverse()` - Initialize all pins and initial states
-- `setupHorn()` - Initialize horn pins and initial states
-- `setupGPS()` - Initialize GPS module and serial communication
-
-#### Main Loop Functions
-
-- `handleReverse()` - Main function called in loop() to handle all logic
-- `handleHorn()` - Main function called in loop() to handle horn logic
-- `handleGPS()` - Main function called in loop() to handle GPS data collection
-
-#### Reverse Gear Functions
-
-- `isReverseGearEngaged()` - Returns current reverse gear state
-
-#### Camera Functions
-
-- `activateCameraByReverse()` - Activate camera due to reverse gear
-- `deactivateCameraByReverse()` - Start timeout countdown when reverse disengaged
-- `isCameraActive()` - Returns current camera state
-
-#### Horn Functions
-
-- `activateHorn()` - Activate horn
-- `deactivateHorn()` - Deactivate horn
-- `isHornActive()` - Returns current horn state
-
-#### GPS Functions
-
-- `sendGPSData()` - Send GPS data via serial in specified format
-- `isGPSValid()` - Check if GPS has valid fix
-- `getSpeed()` - Get current speed in km/h
-- `getLocation()` - Get current latitude and longitude
+- **Reverse Gear Module**: Handles reverse gear detection and camera control
+- **Horn Module**: Manages horn activation with capacitive touch button
+- **GPS Module**: Provides real-time location and speed tracking
+- **Power Management Module**: Controls autoradio power with MOSFET switching
 
 ## Configuration Constants
 
@@ -199,6 +176,7 @@ const int HORN_BUTTON_PIN = 6;
 const int HORN_MOSFET_PIN = 7;
 const int GPS_RX_PIN = 8;
 const int GPS_TX_PIN = 9;
+const int AUTORADIO_MOSFET_PIN = 10;
 
 // Timing constants
 const unsigned long REVERSE_GEAR_DEBOUNCE_MS = 100;
@@ -207,7 +185,8 @@ const unsigned long CAMERA_AUTO_OFF_TIMEOUT_MS = 60000;  // 1 minute
 const unsigned long CAMERA_MANUAL_TIMEOUT_MS = 15000;    // 15 seconds
 const unsigned long HORN_BUTTON_DEBOUNCE_MS = 100;
 const unsigned long HORN_MAX_DURATION_MS = 5000;         // 5 seconds
-const unsigned long GPS_UPDATE_INTERVAL_MS = 1000;       // 1 second
+const unsigned long AUTORADIO_TIMEOUT_MS = 60000;         // 60 seconds
+const unsigned long GPS_UPDATE_INTERVAL_MS = 1000;        // 1 second
 
 // GPS constants
 const int GPS_BAUD_RATE = 9600;
@@ -235,7 +214,15 @@ const int GPS_BAUD_RATE = 9600;
 - Maximum 5-second continuous operation for safety
 - Horn turns off when button is released or timeout reached
 
-### 4. GPS Tracking Mode
+### 4. Power Management Mode
+
+- Autoradio power control via MOSFET on pin 10
+- 60-second startup delay after system initialization
+- Autoradio automatically powers on after delay
+- No manual intervention required
+- MOSFET provides clean 12V switching for autoradio
+
+### 5. GPS Tracking Mode
 
 - Continuous GPS data collection from NEO-6M module
 - Real-time speed and location tracking
@@ -243,13 +230,14 @@ const int GPS_BAUD_RATE = 9600;
 - Format: `SPEED:value` and `LOCATION:lat,lng`
 - No data transmitted when GPS signal is invalid or unavailable
 
-### 5. Combined Mode
+### 6. Combined Mode
 
 - All modes can work together independently
 - Manual camera activation takes priority over reverse gear timeout
 - Horn operates independently of camera system
+- Autoradio power management runs automatically in background
 - GPS tracking runs continuously in background
-- Camera and horn states are properly managed separately
+- Camera, horn, and autoradio states are properly managed separately
 
 ## Serial Output
 
@@ -260,6 +248,7 @@ Car Accessories System Starting...
 Reverse gear and camera module initialized
 Horn module initialized
 GPS module initialized
+Power management system initialized
 System ready!
 Camera activated by reverse gear!
 Reverse gear disengaged - camera will turn off in 1 minute
