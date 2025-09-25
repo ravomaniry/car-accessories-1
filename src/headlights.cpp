@@ -1,5 +1,6 @@
 #include "headlights.h"
 #include "gps.h"
+#include <Arduino.h>
 
 // Headlight pin configuration
 const int PHOTOSENSOR_PIN = A0;        // A0: Photosensitive sensor DO pin (analog input)
@@ -8,8 +9,9 @@ const int TAIL_LIGHT_MOSFET_PIN = 12; // D12: Tail light MOSFET control
 const int LOW_BEAM_MOSFET_PIN = 13;   // D13: Low beam MOSFET control
 
 // Timing configuration
-const unsigned long HEADLIGHT_ON_DEBOUNCE_MS = 5000;   // 5 seconds debounce when turning lights ON
-const unsigned long HEADLIGHT_OFF_DEBOUNCE_MS = 60000; // 1 minute debounce when turning lights OFF
+const unsigned long LIGHT_ON_DEBOUNCE_MS = 5000;   // 5 seconds debounce when turning lights ON
+const unsigned long LIGHT_OFF_DEBOUNCE_MS = 60000; // 1 minute debounce when turning lights OFF
+const unsigned long DRL_TIMEOUT_MS = 60000;        // 1 minute DRL timeout to avoid power competition during cranking
 
 // Light level thresholds (configurable - can be adjusted via serial commands)
 int LOW_LIGHT_THRESHOLD = 300;    // Threshold for low light detection (0-1023)
@@ -23,18 +25,21 @@ bool drlActive = false;
 bool tailLightActive = false;
 bool lowBeamActive = false;
 
-// Individual light debounce tracking
-static unsigned long drlChangeTime = 0;
-static bool drlChangePending = false;
-static bool drlTurningOn = false;
+// Individual light state change tracking
+static unsigned long drlChangeRequestTime = 0;
+static bool drlChangeRequested = false;
+static bool drlChangeToOn = false;
 
-static unsigned long tailLightChangeTime = 0;
-static bool tailLightChangePending = false;
-static bool tailLightTurningOn = false;
+static unsigned long tailLightChangeRequestTime = 0;
+static bool tailLightChangeRequested = false;
+static bool tailLightChangeToOn = false;
 
-static unsigned long lowBeamChangeTime = 0;
-static bool lowBeamChangePending = false;
-static bool lowBeamTurningOn = false;
+static unsigned long lowBeamChangeRequestTime = 0;
+static bool lowBeamChangeRequested = false;
+static bool lowBeamChangeToOn = false;
+
+// DRL timeout tracking
+static unsigned long drlStartTime = 0;
 
 // Current stable states
 static int currentLightLevel = 0;
@@ -64,11 +69,10 @@ void setupHeadlights() {
   currentLightLevel = readLightLevel();
   currentCarMoving = isCarMoving();
   
-  Serial.println("Headlight system initialized");
-  Serial.print("Low light threshold: ");
-  Serial.println(LOW_LIGHT_THRESHOLD);
-  Serial.print("Dark threshold: ");
-  Serial.println(DARK_THRESHOLD);
+  // Initialize DRL timeout for power management during cranking
+  drlStartTime = millis() + DRL_TIMEOUT_MS;
+  
+  // Headlight system initialized
 }
 
 void handleHeadlights() {
@@ -76,7 +80,6 @@ void handleHeadlights() {
   if (millis() - lastReadingTime >= READING_INTERVAL_MS) {
     int newLightLevel = readLightLevel();
     bool newCarMoving = isCarMoving();
-    
     // Check if conditions have changed significantly
     bool lightChanged = abs(newLightLevel - currentLightLevel) > 50;
     bool speedChanged = (newCarMoving != currentCarMoving);
@@ -88,11 +91,6 @@ void handleHeadlights() {
       
       // Calculate desired light states
       calculateDesiredLightStates();
-      
-      Serial.print("Conditions changed. Light: ");
-      Serial.print(currentLightLevel);
-      Serial.print(", Moving: ");
-      Serial.println(currentCarMoving ? "YES" : "NO");
     }
     
     lastReadingTime = millis();
@@ -103,80 +101,77 @@ void handleHeadlights() {
 }
 
 void calculateDesiredLightStates() {
-  int lightLevel = currentLightLevel;
-  bool carMoving = currentCarMoving;
-  
-  // Determine light conditions
-  bool isDay = lightLevel > LOW_LIGHT_THRESHOLD;
-  bool isLowLight = lightLevel <= LOW_LIGHT_THRESHOLD && lightLevel > DARK_THRESHOLD;
-  bool isDark = lightLevel <= DARK_THRESHOLD;
+  BrightnessLevel brightness = getBrightnessLevel();
   
   // Calculate desired light states based on your requirements
   bool desiredDRL = false;
   bool desiredTailLight = false;
   bool desiredLowBeam = false;
   
-  if (isDay) {
-    // During the day: tail light OFF, low beam OFF
-    desiredTailLight = false;
-    desiredLowBeam = false;
-    // DRL only when car is moving
-    desiredDRL = carMoving;
-  } else if (isLowLight) {
-    // Low light: DRL and tail light ON (5 sec delay)
-    desiredDRL = true;
-    desiredTailLight = true;
-    desiredLowBeam = false;
-  } else if (isDark) {
-    // Dark: DRL and tail light always ON
-    desiredDRL = true;
-    desiredTailLight = true;
-    // Low beam only when car is moving
-    desiredLowBeam = carMoving;
+  switch (brightness) {
+    case BRIGHT:
+      // During the day: tail light OFF, low beam OFF
+      desiredTailLight = false;
+      desiredLowBeam = false;
+      // DRL ON only if within timeout period (set at startup)
+      desiredDRL = (millis() < drlStartTime);
+      break;
+      
+    case LOW_LIGHT:
+      // Low light: DRL and tail light ON (5 sec delay)
+      desiredDRL = true;
+      desiredTailLight = true;
+      desiredLowBeam = false;
+      // Reset DRL timeout when conditions change
+      drlStartTime = 0;
+      break;
+      
+    case DARK:
+      // Dark: DRL and tail light always ON
+      desiredDRL = true;
+      desiredTailLight = true;
+      // Low beam always ON in dark (modern car behavior)
+      desiredLowBeam = true;
+      // Reset DRL timeout when conditions change
+      drlStartTime = 0;
+      break;
   }
   
   // Check each light individually for changes
-  checkLightChange(desiredDRL, drlActive, drlChangePending, drlChangeTime, drlTurningOn, "DRL");
-  checkLightChange(desiredTailLight, tailLightActive, tailLightChangePending, tailLightChangeTime, tailLightTurningOn, "Tail Light");
-  checkLightChange(desiredLowBeam, lowBeamActive, lowBeamChangePending, lowBeamChangeTime, lowBeamTurningOn, "Low Beam");
+  checkLightChange(desiredDRL, drlActive, drlChangeRequested, drlChangeRequestTime, drlChangeToOn, "DRL");
+  checkLightChange(desiredTailLight, tailLightActive, tailLightChangeRequested, tailLightChangeRequestTime, tailLightChangeToOn, "Tail Light");
+  checkLightChange(desiredLowBeam, lowBeamActive, lowBeamChangeRequested, lowBeamChangeRequestTime, lowBeamChangeToOn, "Low Beam");
 }
 
-void checkLightChange(bool desired, bool current, bool& changePending, unsigned long& changeTime, bool& turningOn, const char* lightName) {
-  if (desired != current && !changePending) {
-    changePending = true;
-    changeTime = millis();
-    turningOn = desired;
-    Serial.print(lightName);
-    Serial.print(" change requested - turning ");
-    Serial.println(turningOn ? "ON" : "OFF");
+void checkLightChange(bool desired, bool current, bool& changeRequested, unsigned long& changeRequestTime, bool& changeToOn, const char* lightName) {
+  if (desired != current && !changeRequested) {
+    changeRequested = true;
+    changeRequestTime = millis();
+    changeToOn = desired;
   }
 }
 
 void applyLightStateChanges() {
   // Apply DRL changes
-  applyIndividualLightChange(drlChangePending, drlChangeTime, drlTurningOn, drlActive, setDRL, "DRL");
+  applyIndividualLightChange(drlChangeRequested, drlChangeRequestTime, drlChangeToOn, drlActive, setDRL, "DRL");
   
   // Apply Tail Light changes
-  applyIndividualLightChange(tailLightChangePending, tailLightChangeTime, tailLightTurningOn, tailLightActive, setTailLight, "Tail Light");
+  applyIndividualLightChange(tailLightChangeRequested, tailLightChangeRequestTime, tailLightChangeToOn, tailLightActive, setTailLight, "Tail Light");
   
   // Apply Low Beam changes
-  applyIndividualLightChange(lowBeamChangePending, lowBeamChangeTime, lowBeamTurningOn, lowBeamActive, setLowBeam, "Low Beam");
+  applyIndividualLightChange(lowBeamChangeRequested, lowBeamChangeRequestTime, lowBeamChangeToOn, lowBeamActive, setLowBeam, "Low Beam");
 }
 
-void applyIndividualLightChange(bool& changePending, unsigned long& changeTime, bool& turningOn, bool& currentState, void (*setFunction)(bool), const char* lightName) {
-  if (!changePending) return;
+
+void applyIndividualLightChange(bool& changeRequested, unsigned long& changeRequestTime, bool& changeToOn, bool& currentState, void (*setFunction)(bool), const char* lightName) {
+  if (!changeRequested) return;
   
-  unsigned long debounceTime = turningOn ? HEADLIGHT_ON_DEBOUNCE_MS : HEADLIGHT_OFF_DEBOUNCE_MS;
+  unsigned long debounceTime = changeToOn ? LIGHT_ON_DEBOUNCE_MS : LIGHT_OFF_DEBOUNCE_MS;
   
-  if (millis() - changeTime >= debounceTime) {
-    setFunction(turningOn);
-    currentState = turningOn;
-    changePending = false;
-    
-    Serial.print(lightName);
-    Serial.print(" ");
-    Serial.print(turningOn ? "turned ON" : "turned OFF");
-    Serial.println(" after debounce");
+  if (millis() - changeRequestTime >= debounceTime) {
+    setFunction(changeToOn);
+    currentState = changeToOn;
+    changeRequested = false;
   }
 }
 
@@ -187,7 +182,7 @@ bool isCarMoving() {
 
 int readLightLevel() {
   // Read analog value from photosensitive sensor
-  // Higher values = more light, lower values = less light
+  // This sensor outputs HIGHER values in DARKNESS, LOWER values in BRIGHT LIGHT
   int reading = analogRead(PHOTOSENSOR_PIN);
   
   // Add to rolling average
@@ -201,6 +196,19 @@ int readLightLevel() {
   }
   
   return sum / 5;
+}
+
+BrightnessLevel getBrightnessLevel() {
+  int lightLevel = readLightLevel();
+  
+  // Determine brightness level (sensor reversed: HIGH = dark, LOW = bright)
+  if (lightLevel < LOW_LIGHT_THRESHOLD) {
+    return BRIGHT;      // Low sensor value = bright day
+  } else if (lightLevel < DARK_THRESHOLD) {
+    return LOW_LIGHT;  // Medium sensor value = low light
+  } else {
+    return DARK;       // High sensor value = dark
+  }
 }
 
 void setDRL(bool state) {
