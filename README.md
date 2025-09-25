@@ -1,6 +1,6 @@
 # Car Accessories System
 
-A comprehensive Arduino-based car accessories system that automatically activates a backup camera when reverse gear is engaged, with manual control capabilities, horn control, GPS tracking functionality, and power management for accessories.
+A comprehensive Arduino-based car accessories system that automatically activates a backup camera when reverse gear is engaged, with manual control capabilities, horn control, GPS tracking functionality, automatic headlight control, and power management for accessories.
 
 ## Features
 
@@ -8,14 +8,16 @@ A comprehensive Arduino-based car accessories system that automatically activate
 - **Manual Camera Control**: Manual button to activate camera for 15 seconds
 - **Horn Control**: Capacitive touch button for horn activation with MOSFET control
 - **GPS Tracking**: Real-time speed and location tracking using NEO-6M GPS module
+- **Automatic Headlight Control**: Intelligent headlight system with photosensitive sensor
 - **Power Management**: Autoradio power control via MOSFET with 60-second startup delay
-- **Serial Communication**: GPS data transmission in format `SPEED:value, LOCATION:lat,lng`
+- **Serial Communication**: Data transmission to ESP32 in format `KEY:VALUE` (e.g., `SPEED:120`, `DRL:1`, `LOWBEAM:0`)
 - **ESP32 Integration**: Hardware serial pins reserved for ESP32 communication
 - **Smart Timeout Logic**:
   - Manual activation: 15-second timeout
   - Reverse gear activation: 1-minute timeout after reverse is disengaged
   - Horn: Maximum 5-second continuous operation for safety
   - Autoradio: 60-second startup delay before power activation
+  - Headlights: 5-second debounce when turning ON, 1-minute debounce when turning OFF
 - **Debounced Inputs**: Reliable detection of reverse gear and button presses
 - **Serial Debugging**: Status messages via Serial output
 
@@ -25,32 +27,34 @@ A comprehensive Arduino-based car accessories system that automatically activate
 - 12V Camera with MOSFET control
 - 12V Horn with MOSFET control
 - 12V Autoradio with MOSFET control
+- 12V Headlight system (DRL, Tail Light, Low Beam) with MOSFET control
 - NEO-6M GPS module
+- Photosensitive sensor module (3-pin: VCC, GND, DO)
 - Reverse gear switch (normally open)
 - Capacitive touch button for camera (3-pin: GND, VCC, I/O)
 - Capacitive touch button for horn (3-pin: GND, VCC, I/O)
-- MOSFET modules for 12V camera, horn, and autoradio control
+- MOSFET modules for 12V camera, horn, autoradio, and headlight control
 - Resistors: 4.7kΩ and 1kΩ for reverse gear voltage divider
 - ESP32 (optional, for advanced communication)
 
 ## Pin Configuration
 
-| Pin | Function             | Type             | Description                                             |
-| --- | -------------------- | ---------------- | ------------------------------------------------------- |
-| D0  | Serial RX            | Hardware Serial  | ESP32 TX (reserved for ESP32 communication)             |
-| D1  | Serial TX            | Hardware Serial  | ESP32 RX (reserved for ESP32 communication)             |
-| D2  | Available            | -                | Available for future use                                |
-| D3  | REVERSE_GEAR_PIN     | Input (Pull-up)  | Reverse gear switch input (LOW = reverse engaged)       |
-| D4  | CAMERA_MOSFET_PIN    | Output           | Camera 12V MOSFET control (HIGH = camera on)            |
-| D5  | CAMERA_BUTTON_PIN    | Input (External) | Camera capacitive touch button I/O pin (HIGH = touched) |
-| D6  | HORN_BUTTON_PIN      | Input (External) | Horn capacitive touch button I/O pin (HIGH = touched)   |
-| D7  | HORN_MOSFET_PIN      | Output           | Horn 12V MOSFET control (HIGH = horn on)                |
-| D8  | GPS_TX_PIN           | Software Serial  | GPS RX pin (to NEO-6M GPS module)                       |
-| D9  | GPS_RX_PIN           | Software Serial  | GPS TX pin (from NEO-6M GPS module)                     |
-| D10 | AUTORADIO_MOSFET_PIN | Output           | Autoradio 12V MOSFET control (HIGH = autoradio on)      |
-| D11 | Available            | -                | Available for future use                                |
-| D12 | Available            | -                | Available for future use                                |
-| D13 | Available            | -                | Available for future use                                |
+| Pin | Function              | Type             | Description                                             |
+| --- | --------------------- | ---------------- | ------------------------------------------------------- |
+| D0  | Serial RX             | Hardware Serial  | ESP32 TX (reserved for ESP32 communication)             |
+| D1  | Serial TX             | Hardware Serial  | ESP32 RX (reserved for ESP32 communication)             |
+| A0  | PHOTOSENSOR_PIN       | Input (Analog)   | Photosensitive sensor DO pin (analog reading)           |
+| D3  | REVERSE_GEAR_PIN      | Input (Pull-up)  | Reverse gear switch input (LOW = reverse engaged)       |
+| D4  | CAMERA_MOSFET_PIN     | Output           | Camera 12V MOSFET control (HIGH = camera on)            |
+| D5  | CAMERA_BUTTON_PIN     | Input (External) | Camera capacitive touch button I/O pin (HIGH = touched) |
+| D6  | HORN_BUTTON_PIN       | Input (External) | Horn capacitive touch button I/O pin (HIGH = touched)   |
+| D7  | HORN_MOSFET_PIN       | Output           | Horn 12V MOSFET control (HIGH = horn on)                |
+| D8  | GPS_TX_PIN            | Software Serial  | GPS RX pin (to NEO-6M GPS module)                       |
+| D9  | GPS_RX_PIN            | Software Serial  | GPS TX pin (from NEO-6M GPS module)                     |
+| D10 | AUTORADIO_MOSFET_PIN  | Output           | Autoradio 12V MOSFET control (HIGH = autoradio on)      |
+| D11 | DRL_MOSFET_PIN        | Output           | DRL (Daytime Running Lights) MOSFET control             |
+| D12 | TAIL_LIGHT_MOSFET_PIN | Output           | Tail light MOSFET control                               |
+| D13 | LOW_BEAM_MOSFET_PIN   | Output           | Low beam headlight MOSFET control                       |
 
 **Note**: Pin D2 is avoided as it may be damaged on some boards. Hardware serial pins (D0/D1) are reserved for ESP32 communication.
 
@@ -86,12 +90,28 @@ Arduino Uno/Nano
 │         Autoradio MOSFET Source ── GND
 │         Autoradio MOSFET Drain ── Autoradio 12V+
 │
+├── D11 ── DRL MOSFET Gate
+│         DRL MOSFET Source ── GND
+│         DRL MOSFET Drain ── DRL 12V+
+│
+├── D12 ── Tail Light MOSFET Gate
+│         Tail Light MOSFET Source ── GND
+│         Tail Light MOSFET Drain ── Tail Light 12V+
+│
+├── D13 ── Low Beam MOSFET Gate
+│         Low Beam MOSFET Source ── GND
+│         Low Beam MOSFET Drain ── Low Beam 12V+
+│
+├── A0 ── Photosensitive Sensor DO
+│
 ├── +5V ── Capacitive Touch Buttons VCC
 ├── +5V ── GPS VCC
+├── +5V ── Photosensitive Sensor VCC
 │
 ├── GND ── Capacitive Touch Buttons GND
 ├── GND ── GPS GND
 ├── GND ── ESP32 GND
+├── GND ── Photosensitive Sensor GND
 │
 └── GND ── Common Ground
 ```
@@ -148,6 +168,37 @@ Arduino Uno/Nano
 - HIGH signal on D10 enables autoradio power
 - LOW signal on D10 disables autoradio power
 
+**Photosensitive Sensor (A0)**:
+
+- 3-pin photosensitive sensor module (VCC, GND, DO)
+- VCC pin connected to Arduino +5V
+- GND pin connected to Arduino GND
+- DO pin connected to Arduino A0 (analog input)
+- Provides analog readings (0-1023) for light level detection
+- Higher values indicate more light, lower values indicate less light
+
+**Headlight MOSFET Controls (D11, D12, D13)**:
+
+- **DRL MOSFET (D11)**: Controls Daytime Running Lights
+
+  - MOSFET gate connected to Arduino D11
+  - MOSFET source connected to GND
+  - MOSFET drain connected to DRL 12V+ supply
+  - HIGH signal enables DRL, LOW signal disables DRL
+
+- **Tail Light MOSFET (D12)**: Controls tail lights
+
+  - MOSFET gate connected to Arduino D12
+  - MOSFET source connected to GND
+  - MOSFET drain connected to tail light 12V+ supply
+  - HIGH signal enables tail lights, LOW signal disables tail lights
+
+- **Low Beam MOSFET (D13)**: Controls low beam headlights
+  - MOSFET gate connected to Arduino D13
+  - MOSFET source connected to GND
+  - MOSFET drain connected to low beam 12V+ supply
+  - HIGH signal enables low beam, LOW signal disables low beam
+
 **ESP32 Communication (D0, D1)**:
 
 - Hardware serial communication
@@ -163,6 +214,7 @@ The system is organized into modular components:
 - **Reverse Gear Module**: Handles reverse gear detection and camera control
 - **Horn Module**: Manages horn activation with capacitive touch button
 - **GPS Module**: Provides real-time location and speed tracking
+- **Headlight Module**: Intelligent headlight control with photosensitive sensor
 - **Power Management Module**: Controls autoradio power with MOSFET switching
 
 ## Configuration Constants
@@ -177,6 +229,10 @@ const int HORN_MOSFET_PIN = 7;
 const int GPS_RX_PIN = 8;
 const int GPS_TX_PIN = 9;
 const int AUTORADIO_MOSFET_PIN = 10;
+const int PHOTOSENSOR_PIN = A0;
+const int DRL_MOSFET_PIN = 11;
+const int TAIL_LIGHT_MOSFET_PIN = 12;
+const int LOW_BEAM_MOSFET_PIN = 13;
 
 // Timing constants
 const unsigned long REVERSE_GEAR_DEBOUNCE_MS = 100;
@@ -187,9 +243,16 @@ const unsigned long HORN_BUTTON_DEBOUNCE_MS = 100;
 const unsigned long HORN_MAX_DURATION_MS = 5000;         // 5 seconds
 const unsigned long AUTORADIO_TIMEOUT_MS = 60000;         // 60 seconds
 const unsigned long GPS_UPDATE_INTERVAL_MS = 1000;        // 1 second
+const unsigned long HEADLIGHT_ON_DEBOUNCE_MS = 5000;      // 5 seconds when turning lights ON
+const unsigned long HEADLIGHT_OFF_DEBOUNCE_MS = 60000;     // 1 minute when turning lights OFF
 
 // GPS constants
 const int GPS_BAUD_RATE = 9600;
+
+// Headlight constants
+const float DRL_ACTIVATION_SPEED_THRESHOLD = 5.0;        // Speed threshold for DRL activation
+int LOW_LIGHT_THRESHOLD = 300;                           // Low light detection threshold
+int DARK_THRESHOLD = 150;                                // Dark detection threshold
 ```
 
 ## Operation Modes

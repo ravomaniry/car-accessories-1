@@ -3,6 +3,7 @@
 #include "horn.h"
 #include "gps.h"
 #include "power_manager.h"
+#include "headlights.h"
 
 void setup() {
   // Initialize serial communication for debugging
@@ -25,6 +26,10 @@ void setup() {
   setupPowerManager();
   Serial.println("Power management system initialized");
   
+  // Initialize headlight system
+  setupHeadlights();
+  Serial.println("Headlight system initialized");
+  
   Serial.println("System ready!");
 }
 
@@ -40,6 +45,9 @@ void loop() {
   
   // Handle GPS data collection and transmission
   handleGPS();
+  
+  // Handle headlight control
+  handleHeadlights();
   
   // Small delay to prevent overwhelming the system
   delay(10);
