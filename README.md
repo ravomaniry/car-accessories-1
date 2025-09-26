@@ -64,42 +64,30 @@ Arduino Uno/Nano
 ├── D0 (RX) ── ESP32 TX (Hardware Serial)
 ├── D1 (TX) ── ESP32 RX (Hardware Serial)
 │
-├── D3 (green) ── 1kΩ ──┐
-│                       │
-│                       └── Reverse Gear Switch ── GND
-│                       │
-│                       └── 4.7kΩ ── +5V
+├── D3 ── 1kΩ ──┐
+│               │
+│               └── PIN 4 --- Reverse Gear Switch ── GND
+│               │
+│               └── 4.7kΩ ── +5V
 │
-├── D4 ── Camera MOSFET Gate
-│        Camera MOSFET Source ── GND
-│        Camera MOSFET Drain ── Camera 12V+
+├── D4 ── MOSFET 5 --- Backup Camera
 │
 ├── D5 ── Camera Capacitive Touch Button I/O
 │
 ├── D6 ── Horn Capacitive Touch Button I/O
 │
-├── D7 ── Horn MOSFET Gate
-│        Horn MOSFET Source ── GND
-│        Horn MOSFET Drain ── Horn 12V+
+├── D7 ── MOSFET 6 --- Horn
 │
 ├── D8 ── GPS RX (to NEO-6M)
 ├── D9 ── GPS TX (from NEO-6M)
 │
-├── D10 ── Autoradio MOSFET Gate
-│         Autoradio MOSFET Source ── GND
-│         Autoradio MOSFET Drain ── Autoradio 12V+
+├── D10 ── MOSFET 3 --- Autoradio power
 │
-├── D11 ── DRL MOSFET Gate
-│         DRL MOSFET Source ── GND
-│         DRL MOSFET Drain ── DRL 12V+
+├── D11 ── MOSFET 2 --- DRL
 │
-├── D12 ── Tail Light MOSFET Gate
-│         Tail Light MOSFET Source ── GND
-│         Tail Light MOSFET Drain ── Tail Light 12V+
+├── D12 ── MOSFET 7 --- Tail Light
 │
-├── D13 ── Low Beam MOSFET Gate
-│         Low Beam MOSFET Source ── GND
-│         Low Beam MOSFET Drain ── Low Beam 12V+
+├── D13 ── MOSFET 4 --- Low Beam
 │
 ├── A0 ── Photosensitive Sensor DO
 │
