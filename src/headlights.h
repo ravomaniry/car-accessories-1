@@ -8,6 +8,8 @@ extern const int PHOTOSENSOR_PIN;        // Photosensitive sensor DO pin
 extern const int DRL_MOSFET_PIN;         // DRL (Daytime Running Lights) MOSFET control
 extern const int TAIL_LIGHT_MOSFET_PIN;  // Tail light MOSFET control
 extern const int LOW_BEAM_MOSFET_PIN;    // Low beam headlight MOSFET control
+extern const int HIGH_BEAM_MOSFET_PIN;   // High beam headlight MOSFET control
+extern const int JOYSTICK_Y_PIN;         // Joystick Y-axis analog pin
 
 // Timing configuration
 extern const unsigned long LIGHT_ON_DEBOUNCE_MS;   // Debounce time when turning lights ON (5 seconds)
@@ -28,10 +30,24 @@ enum BrightnessLevel {
   DARK         // Dark conditions (night)
 };
 
+// Beam mode enum
+enum BeamMode {
+  BEAM_OFF,     // Both beams off
+  BEAM_LOW,     // Low beam only
+  BEAM_HIGH     // High beam only
+};
+
+// Joystick direction enum
+enum JoystickDirection {
+  JOYSTICK_CENTER,  // Center position (no action)
+  JOYSTICK_UP,      // Up direction (beam flashing)
+  JOYSTICK_DOWN     // Down direction (beam switching)
+};
+
 // Headlight state variables
 extern bool drlActive;
 extern bool tailLightActive;
-extern bool lowBeamActive;
+extern BeamMode currentBeamMode;
 
 // Headlight functions
 void setupHeadlights();
@@ -45,6 +61,11 @@ int readLightLevel();
 BrightnessLevel getBrightnessLevel();
 void setDRL(bool state);
 void setTailLight(bool state);
-void setLowBeam(bool state);
+void setBeamMode(BeamMode mode);
+void handleJoystick();
+JoystickDirection readJoystickDirection();
+void startBeamFlash();
+void toggleBeamMode();
+void performBeamFlash();
 
 #endif

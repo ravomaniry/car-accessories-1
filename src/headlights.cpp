@@ -3,15 +3,20 @@
 #include <Arduino.h>
 
 // Headlight pin configuration
-const int PHOTOSENSOR_PIN = A0;        // A0: Photosensitive sensor DO pin (analog input)
+const int PHOTOSENSOR_PIN = A0;       // A0: Photosensitive sensor DO pin (analog input)
 const int DRL_MOSFET_PIN = 11;        // D11: DRL MOSFET control
 const int TAIL_LIGHT_MOSFET_PIN = 12; // D12: Tail light MOSFET control
 const int LOW_BEAM_MOSFET_PIN = 13;   // D13: Low beam MOSFET control
+const int HIGH_BEAM_MOSFET_PIN = A2;  // A2: High beam MOSFET control
+const int JOYSTICK_Y_PIN = A1;        // A1: Joystick Y-axis analog pin
 
 // Timing configuration
 const unsigned long LIGHT_ON_DEBOUNCE_MS = 5000;   // 5 seconds debounce when turning lights ON
 const unsigned long LIGHT_OFF_DEBOUNCE_MS = 60000; // 1 minute debounce when turning lights OFF
 const unsigned long DRL_TIMEOUT_MS = 60000;        // 1 minute DRL timeout to avoid power competition during cranking
+const unsigned long JOYSTICK_DEBOUNCE_MS = 200;     // 200ms debounce for joystick inputs
+const unsigned long BEAM_FLASH_DURATION_MS = 300;  // 300ms duration for each beam flash (relay-friendly)
+const unsigned long BEAM_FLASH_PAUSE_MS = 200;      // 200ms pause between flashes (relay-friendly)
 
 // Light level thresholds (configurable - can be adjusted via serial commands)
 int LOW_LIGHT_THRESHOLD = 300;    // Threshold for low light detection (0-1023)
@@ -20,10 +25,16 @@ int DARK_THRESHOLD = 150;         // Threshold for dark detection (0-1023)
 // Speed threshold
 const float DRL_ACTIVATION_SPEED_THRESHOLD = 5.0;  // Speed threshold for DRL activation
 
+// Joystick analog thresholds (0-1023)
+const int JOYSTICK_UP_THRESHOLD = 800;     // Above this value = joystick pushed up
+const int JOYSTICK_DOWN_THRESHOLD = 200;   // Below this value = joystick pushed down
+const int JOYSTICK_CENTER_MIN = 400;       // Center position minimum
+const int JOYSTICK_CENTER_MAX = 600;       // Center position maximum
+
 // Headlight state variables
 bool drlActive = false;
 bool tailLightActive = false;
-bool lowBeamActive = false;
+BeamMode currentBeamMode = BEAM_OFF;
 
 // Individual light state change tracking
 static unsigned long drlChangeRequestTime = 0;
@@ -34,16 +45,23 @@ static unsigned long tailLightChangeRequestTime = 0;
 static bool tailLightChangeRequested = false;
 static bool tailLightChangeToOn = false;
 
-static unsigned long lowBeamChangeRequestTime = 0;
-static bool lowBeamChangeRequested = false;
-static bool lowBeamChangeToOn = false;
-
 // DRL timeout tracking
 static unsigned long drlStartTime = 0;
 
 // Current stable states
 static int currentLightLevel = 0;
 static bool currentCarMoving = false;
+
+// Joystick state tracking
+static bool joystickUpPressed = false;
+static bool joystickDownPressed = false;
+static unsigned long lastJoystickUpTime = 0;
+static unsigned long lastJoystickDownTime = 0;
+static bool beamFlashInProgress = false;
+static unsigned long beamFlashStartTime = 0;
+static int beamFlashStep = 0;
+static BeamMode previousBeamMode = BEAM_OFF;
+static int joystickYValue = 512;  // Center position (0-1023)
 
 // Light level reading variables
 static int lightLevelReadings[5] = {0};  // Array for averaging readings
@@ -59,11 +77,16 @@ void setupHeadlights() {
   pinMode(DRL_MOSFET_PIN, OUTPUT);
   pinMode(TAIL_LIGHT_MOSFET_PIN, OUTPUT);
   pinMode(LOW_BEAM_MOSFET_PIN, OUTPUT);
+  pinMode(HIGH_BEAM_MOSFET_PIN, OUTPUT);
+  
+  // Setup joystick pin (analog input)
+  pinMode(JOYSTICK_Y_PIN, INPUT);
   
   // Initialize all lights to OFF
   digitalWrite(DRL_MOSFET_PIN, LOW);
   digitalWrite(TAIL_LIGHT_MOSFET_PIN, LOW);
   digitalWrite(LOW_BEAM_MOSFET_PIN, LOW);
+  digitalWrite(HIGH_BEAM_MOSFET_PIN, LOW);
   
   // Initialize current states
   currentLightLevel = readLightLevel();
@@ -76,6 +99,14 @@ void setupHeadlights() {
 }
 
 void handleHeadlights() {
+  // Handle joystick inputs first (highest priority)
+  handleJoystick();
+  
+  // Handle beam flashing if in progress
+  if (beamFlashInProgress) {
+    performBeamFlash();
+  }
+  
   // Read light level and speed at regular intervals
   if (millis() - lastReadingTime >= READING_INTERVAL_MS) {
     int newLightLevel = readLightLevel();
@@ -106,13 +137,12 @@ void calculateDesiredLightStates() {
   // Calculate desired light states based on your requirements
   bool desiredDRL = false;
   bool desiredTailLight = false;
-  bool desiredLowBeam = false;
+  BeamMode desiredBeamMode = currentBeamMode; // Keep current manual setting by default
   
   switch (brightness) {
     case BRIGHT:
-      // During the day: tail light OFF, low beam OFF
+      // During the day: tail light OFF, beam mode unchanged (manual control)
       desiredTailLight = false;
-      desiredLowBeam = false;
       // DRL ON only if within timeout period (set at startup)
       desiredDRL = (millis() < drlStartTime);
       break;
@@ -121,7 +151,6 @@ void calculateDesiredLightStates() {
       // Low light: DRL and tail light ON (5 sec delay)
       desiredDRL = true;
       desiredTailLight = true;
-      desiredLowBeam = false;
       // Reset DRL timeout when conditions change
       drlStartTime = 0;
       break;
@@ -130,8 +159,10 @@ void calculateDesiredLightStates() {
       // Dark: DRL and tail light always ON
       desiredDRL = true;
       desiredTailLight = true;
-      // Low beam always ON in dark (modern car behavior)
-      desiredLowBeam = true;
+      // In dark conditions, ensure at least low beam is on (unless manually set to high beam)
+      if (currentBeamMode == BEAM_OFF) {
+        desiredBeamMode = BEAM_LOW;
+      }
       // Reset DRL timeout when conditions change
       drlStartTime = 0;
       break;
@@ -140,7 +171,11 @@ void calculateDesiredLightStates() {
   // Check each light individually for changes
   checkLightChange(desiredDRL, drlActive, drlChangeRequested, drlChangeRequestTime, drlChangeToOn, "DRL");
   checkLightChange(desiredTailLight, tailLightActive, tailLightChangeRequested, tailLightChangeRequestTime, tailLightChangeToOn, "Tail Light");
-  checkLightChange(desiredLowBeam, lowBeamActive, lowBeamChangeRequested, lowBeamChangeRequestTime, lowBeamChangeToOn, "Low Beam");
+  
+  // Handle beam mode changes (only if automatic system wants to change it)
+  if (desiredBeamMode != currentBeamMode) {
+    setBeamMode(desiredBeamMode);
+  }
 }
 
 void checkLightChange(bool desired, bool current, bool& changeRequested, unsigned long& changeRequestTime, bool& changeToOn, const char* lightName) {
@@ -157,9 +192,6 @@ void applyLightStateChanges() {
   
   // Apply Tail Light changes
   applyIndividualLightChange(tailLightChangeRequested, tailLightChangeRequestTime, tailLightChangeToOn, tailLightActive, setTailLight, "Tail Light");
-  
-  // Apply Low Beam changes
-  applyIndividualLightChange(lowBeamChangeRequested, lowBeamChangeRequestTime, lowBeamChangeToOn, lowBeamActive, setLowBeam, "Low Beam");
 }
 
 
@@ -230,11 +262,169 @@ void setTailLight(bool state) {
   }
 }
 
-void setLowBeam(bool state) {
-  if (lowBeamActive != state) {
-    lowBeamActive = state;
-    digitalWrite(LOW_BEAM_MOSFET_PIN, state ? HIGH : LOW);
+void setBeamMode(BeamMode mode) {
+  if (currentBeamMode != mode) {
+    currentBeamMode = mode;
+    
+    // Set low beam based on mode
+    bool lowBeamState = (mode == BEAM_LOW);
+    digitalWrite(LOW_BEAM_MOSFET_PIN, lowBeamState ? HIGH : LOW);
     Serial.print("LOWBEAM:");
-    Serial.println(state ? "1" : "0");
+    Serial.println(lowBeamState ? "1" : "0");
+    
+    // Set high beam based on mode
+    bool highBeamState = (mode == BEAM_HIGH);
+    digitalWrite(HIGH_BEAM_MOSFET_PIN, highBeamState ? HIGH : LOW);
+    Serial.print("HIGHBEAM:");
+    Serial.println(highBeamState ? "1" : "0");
+    
+    // Debug output
+    const char* modeNames[] = {"OFF", "LOW", "HIGH"};
+    Serial.print("Beam mode changed to: ");
+    Serial.println(modeNames[mode]);
+  }
+}
+
+JoystickDirection readJoystickDirection() {
+  int joystickValue = analogRead(JOYSTICK_Y_PIN);
+  joystickYValue = joystickValue; // Store for debug output
+  
+  if (joystickValue > JOYSTICK_UP_THRESHOLD) {
+    return JOYSTICK_UP;
+  } else if (joystickValue < JOYSTICK_DOWN_THRESHOLD) {
+    return JOYSTICK_DOWN;
+  } else {
+    return JOYSTICK_CENTER;
+  }
+}
+
+void startBeamFlash() {
+  // Start beam flashing sequence
+  if (!beamFlashInProgress) {
+    beamFlashInProgress = true;
+    beamFlashStartTime = millis();
+    beamFlashStep = 0;
+    
+    // Store current beam states
+    previousBeamMode = currentBeamMode;
+    
+    Serial.print("Beam flash started (Y=");
+    Serial.print(joystickYValue);
+    Serial.println(")");
+  }
+}
+
+void toggleBeamMode() {
+  // Toggle between LOW and HIGH beam modes only
+  // If currently OFF, ignore joystick input
+  if (currentBeamMode == BEAM_LOW) {
+    setBeamMode(BEAM_HIGH);
+    Serial.print("Switched to high beam (Y=");
+    Serial.print(joystickYValue);
+    Serial.println(")");
+  } else if (currentBeamMode == BEAM_HIGH) {
+    setBeamMode(BEAM_LOW);
+    Serial.print("Switched to low beam (Y=");
+    Serial.print(joystickYValue);
+    Serial.println(")");
+  }
+  // If BEAM_OFF, do nothing (ignore joystick input)
+}
+
+void handleJoystick() {
+  // Read joystick and get direction in one call
+  JoystickDirection direction = readJoystickDirection();
+  
+  // Handle joystick up (beam flashing)
+  if (direction == JOYSTICK_UP && !joystickUpPressed && (millis() - lastJoystickUpTime > JOYSTICK_DEBOUNCE_MS)) {
+    joystickUpPressed = true;
+    lastJoystickUpTime = millis();
+    startBeamFlash();
+  } else if (direction != JOYSTICK_UP) {
+    joystickUpPressed = false;
+  }
+  
+  // Handle joystick down (beam switching)
+  if (direction == JOYSTICK_DOWN && !joystickDownPressed && (millis() - lastJoystickDownTime > JOYSTICK_DEBOUNCE_MS)) {
+    joystickDownPressed = true;
+    lastJoystickDownTime = millis();
+    
+    // Only switch if not currently flashing
+    if (!beamFlashInProgress) {
+      toggleBeamMode();
+    }
+  } else if (direction != JOYSTICK_DOWN) {
+    joystickDownPressed = false;
+  }
+}
+
+void performBeamFlash() {
+  unsigned long elapsed = millis() - beamFlashStartTime;
+  
+  // Flash sequence: high-low-high-low (2 complete cycles)
+  // Each flash is 300ms duration with 200ms pause (relay-friendly)
+  
+  switch (beamFlashStep) {
+    case 0: // First flash - high beam
+      if (elapsed >= 0) {
+        setBeamMode(BEAM_HIGH);
+        beamFlashStep = 1;
+      }
+      break;
+      
+    case 1: // First pause
+      if (elapsed >= BEAM_FLASH_DURATION_MS) {
+        setBeamMode(BEAM_LOW);
+        beamFlashStep = 2;
+      }
+      break;
+      
+    case 2: // Second flash - low beam
+      if (elapsed >= BEAM_FLASH_DURATION_MS + BEAM_FLASH_PAUSE_MS) {
+        setBeamMode(BEAM_LOW);
+        beamFlashStep = 3;
+      }
+      break;
+      
+    case 3: // Second pause
+      if (elapsed >= 2 * (BEAM_FLASH_DURATION_MS + BEAM_FLASH_PAUSE_MS)) {
+        setBeamMode(BEAM_OFF);
+        beamFlashStep = 4;
+      }
+      break;
+      
+    case 4: // Third flash - high beam
+      if (elapsed >= 2 * (BEAM_FLASH_DURATION_MS + BEAM_FLASH_PAUSE_MS) + BEAM_FLASH_PAUSE_MS) {
+        setBeamMode(BEAM_HIGH);
+        beamFlashStep = 5;
+      }
+      break;
+      
+    case 5: // Third pause
+      if (elapsed >= 3 * (BEAM_FLASH_DURATION_MS + BEAM_FLASH_PAUSE_MS)) {
+        setBeamMode(BEAM_LOW);
+        beamFlashStep = 6;
+      }
+      break;
+      
+    case 6: // Fourth flash - low beam
+      if (elapsed >= 3 * (BEAM_FLASH_DURATION_MS + BEAM_FLASH_PAUSE_MS) + BEAM_FLASH_PAUSE_MS) {
+        setBeamMode(BEAM_LOW);
+        beamFlashStep = 7;
+      }
+      break;
+      
+    case 7: // Final pause and restore
+      if (elapsed >= 4 * (BEAM_FLASH_DURATION_MS + BEAM_FLASH_PAUSE_MS)) {
+        // Restore previous beam mode
+        setBeamMode(previousBeamMode);
+        
+        // End flashing sequence
+        beamFlashInProgress = false;
+        beamFlashStep = 0;
+        
+        Serial.println("Beam flash completed");
+      }
+      break;
   }
 }
