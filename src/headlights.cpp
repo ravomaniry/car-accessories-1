@@ -45,6 +45,10 @@ static unsigned long tailLightChangeRequestTime = 0;
 static bool tailLightChangeRequested = false;
 static bool tailLightChangeToOn = false;
 
+static unsigned long beamModeChangeRequestTime = 0;
+static bool beamModeChangeRequested = false;
+static BeamMode beamModeChangeTo = BEAM_OFF;
+
 // DRL timeout tracking
 static unsigned long drlStartTime = 0;
 
@@ -92,8 +96,8 @@ void setupHeadlights() {
   currentLightLevel = readLightLevel();
   currentCarMoving = isCarMoving();
   
-  // Initialize DRL timeout for power management during cranking
-  drlStartTime = millis() + DRL_TIMEOUT_MS;
+  // Initialize DRL timeout - will be set when first bright condition is detected
+  drlStartTime = 0;
   
   // Headlight system initialized
 }
@@ -141,18 +145,27 @@ void calculateDesiredLightStates() {
   
   switch (brightness) {
     case BRIGHT:
-      // During the day: tail light OFF, beam mode unchanged (manual control)
+      // During the day: tail light OFF, beams OFF (automatic control)
       desiredTailLight = false;
-      // DRL ON only if within timeout period (set at startup)
-      desiredDRL = (millis() < drlStartTime);
+      desiredBeamMode = BEAM_OFF;
+      // DRL ON if timeout period has passed (once activated, stays on permanently)
+      if (drlStartTime == 0) {
+        // Start DRL timeout on first bright condition
+        drlStartTime = millis() + DRL_TIMEOUT_MS;
+        desiredDRL = false; // Not yet activated
+      } else if (millis() >= drlStartTime) {
+        // Timeout has passed, DRL should be permanently ON
+        desiredDRL = true;
+      } else {
+        // Still within timeout period, DRL stays OFF
+        desiredDRL = false;
+      }
       break;
       
     case LOW_LIGHT:
       // Low light: DRL and tail light ON (5 sec delay)
       desiredDRL = true;
       desiredTailLight = true;
-      // Reset DRL timeout when conditions change
-      drlStartTime = 0;
       break;
       
     case DARK:
@@ -163,8 +176,6 @@ void calculateDesiredLightStates() {
       if (currentBeamMode == BEAM_OFF) {
         desiredBeamMode = BEAM_LOW;
       }
-      // Reset DRL timeout when conditions change
-      drlStartTime = 0;
       break;
   }
   
@@ -172,9 +183,11 @@ void calculateDesiredLightStates() {
   checkLightChange(desiredDRL, drlActive, drlChangeRequested, drlChangeRequestTime, drlChangeToOn, "DRL");
   checkLightChange(desiredTailLight, tailLightActive, tailLightChangeRequested, tailLightChangeRequestTime, tailLightChangeToOn, "Tail Light");
   
-  // Handle beam mode changes (only if automatic system wants to change it)
-  if (desiredBeamMode != currentBeamMode) {
-    setBeamMode(desiredBeamMode);
+  // Handle beam mode changes with debounce (only if automatic system wants to change it)
+  if (desiredBeamMode != currentBeamMode && !beamModeChangeRequested) {
+    beamModeChangeRequested = true;
+    beamModeChangeRequestTime = millis();
+    beamModeChangeTo = desiredBeamMode;
   }
 }
 
@@ -192,6 +205,23 @@ void applyLightStateChanges() {
   
   // Apply Tail Light changes
   applyIndividualLightChange(tailLightChangeRequested, tailLightChangeRequestTime, tailLightChangeToOn, tailLightActive, setTailLight, "Tail Light");
+  
+  // Apply Beam Mode changes with appropriate debounce timing
+  if (beamModeChangeRequested) {
+    unsigned long debounceTime;
+    
+    // Use different debounce times: 5sec for turning ON, 60sec for turning OFF
+    if (beamModeChangeTo == BEAM_OFF) {
+      debounceTime = LIGHT_OFF_DEBOUNCE_MS;  // 60 seconds for turning OFF
+    } else {
+      debounceTime = LIGHT_ON_DEBOUNCE_MS;   // 5 seconds for turning ON (LOW/HIGH)
+    }
+    
+    if (millis() - beamModeChangeRequestTime >= debounceTime) {
+      setBeamMode(beamModeChangeTo);
+      beamModeChangeRequested = false;
+    }
+  }
 }
 
 
@@ -264,6 +294,9 @@ void setTailLight(bool state) {
 
 void setBeamMode(BeamMode mode) {
   if (currentBeamMode != mode) {
+    // Cancel any pending automatic beam mode changes when manually setting
+    beamModeChangeRequested = false;
+    
     currentBeamMode = mode;
     
     // Set low beam based on mode
