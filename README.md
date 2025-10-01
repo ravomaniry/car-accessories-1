@@ -15,30 +15,25 @@ Arduino Uno/Nano
 │               │
 │               └── 4.7kΩ ── +5V
 │
-├── D4 ── RELAY 1 ── Backup Camera
+├── D4 ── RELAY 3 ── Backup Camera
 │
 ├── D5 ── Camera Capacitive Touch Button I/O
 │
 ├── D6 ── Horn Capacitive Touch Button I/O
 │
-├── D7 ── RELAY 2 ── Horn
+├── D7 ── RELAY 4 ── Horn
 │
 ├── D8 ── GPS RX (to NEO-6M)
 ├── D9 ── GPS TX (from NEO-6M)
 │
 ├── D10 ── MOSFET 3 ── Autoradio power
 │
-├── A3 ── MOSFET 4 ── High Beam
-│
-├── D11 ── RELAY 3 ── DRL
-│
-├── D12 ── MOSFET 7 ── Tail Light
-|
-├── D13 ── RELAY 4 ── Low Beam
-│
 ├── A0 ── Photosensitive Sensor DO
 ├── A1 ── Joystick Y-Axis (Analog)
-├── A2 ── RELAY 5 ── High beam
+├── D11 ── RELAY 5 ── DRL
+├── D12 ── MOSFET 7 ── Tail Light
+├── D13 ── RELAY 6── Low Beam
+├── A2 ── RELAY 7 ── High beam
 │
 ├── +5V ── Capacitive Touch Buttons VCC
 ├── +5V ── GPS VCC
