@@ -21,7 +21,7 @@ Arduino Uno/Nano
 │
 ├── D6 ── Horn Capacitive Touch Button I/O
 │
-├── D7 ── RELAY 4 ── Horn
+├── D7 ── MOSFET 7 ── Tail Light
 │
 ├── D8 ── GPS RX (to NEO-6M)
 ├── D9 ── GPS TX (from NEO-6M)
@@ -31,7 +31,7 @@ Arduino Uno/Nano
 ├── A0 ── Photosensitive Sensor DO
 ├── A1 ── Joystick Y-Axis (Analog)
 ├── D11 ── RELAY 5 ── DRL
-├── D12 ── MOSFET 7 ── Tail Light
+├── D12 ── RELAY 4 ── Horn
 ├── D13 ── RELAY 6── Low Beam
 ├── A2 ── RELAY 7 ── High beam
 │
@@ -131,9 +131,9 @@ Arduino Uno/Nano
   - MOSFET drain connected to DRL 12V+ supply
   - HIGH signal enables DRL, LOW signal disables DRL
 
-- **Tail Light MOSFET (D12)**: Controls tail lights
+- **Tail Light MOSFET (D7)**: Controls tail lights
 
-  - MOSFET gate connected to Arduino D12
+  - MOSFET gate connected to Arduino D7
   - MOSFET source connected to GND
   - MOSFET drain connected to tail light 12V+ supply
   - HIGH signal enables tail lights, LOW signal disables tail lights

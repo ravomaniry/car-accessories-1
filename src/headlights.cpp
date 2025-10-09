@@ -5,7 +5,7 @@
 // Headlight pin configuration
 const int PHOTOSENSOR_PIN = A0;       // A0: Photosensitive sensor DO pin (analog input)
 const int DRL_MOSFET_PIN = 11;        // D11: DRL MOSFET control
-const int TAIL_LIGHT_MOSFET_PIN = 12; // D12: Tail light MOSFET control
+const int TAIL_LIGHT_MOSFET_PIN = 7; // D7: Tail light MOSFET control
 const int LOW_BEAM_MOSFET_PIN = 13;   // D13: Low beam MOSFET control
 const int HIGH_BEAM_MOSFET_PIN = A2;  // A2: High beam MOSFET control
 const int JOYSTICK_Y_PIN = A1;        // A1: Joystick Y-axis analog pin
