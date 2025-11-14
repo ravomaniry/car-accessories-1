@@ -1,6 +1,6 @@
 # Car Accessories System
 
-A comprehensive Arduino-based car accessories system that automatically activates a backup camera when reverse gear is engaged, with manual control capabilities, horn control, GPS tracking functionality, automatic headlight control, and power management for accessories.
+A comprehensive Arduino-based car accessories system that automatically activates a backup camera when reverse gear is engaged, with manual control capabilities, horn control, GPS tracking functionality, and automatic headlight control.
 
 ## Wiring Diagram
 
@@ -193,11 +193,6 @@ Arduino Uno/Nano
 - **Center Position (400 < Y < 600)**: No action (joystick centered)
 - **Debounce**: 200ms debounce for joystick inputs to prevent multiple triggers
 - **Automatic Control**: In dark conditions, automatically turns on low beam if currently OFF
-
-### Power Management
-
-- **Autoradio**: Automatically powers on after 60-second startup delay
-- **GPS**: Continuous tracking with data transmission to ESP32
 
 ## Serial Communication
 

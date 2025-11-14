@@ -2,7 +2,7 @@
 
 // Horn configuration
 const int HORN_BUTTON_PIN = 6; // D6: Capacitive touch button for horn activation
-const int HORN_MOSFET_PIN = 12; // D12: Horn 12V MOSFET control
+const int HORN_MOSFET_PIN = 12; // D12: Horn 12V relay control
 const unsigned long HORN_BUTTON_DEBOUNCE_MS = 5;
 const unsigned long HORN_MAX_DURATION_MS = 5000; // Maximum 5 seconds continuous horn
 
@@ -14,9 +14,9 @@ static unsigned long hornLastDebounceTime = 0;
 static unsigned long hornStartTime = 0;
 
 void setupHorn() {
-  // Setup horn MOSFET control
+  // Setup horn relay control
   pinMode(HORN_MOSFET_PIN, OUTPUT);
-  digitalWrite(HORN_MOSFET_PIN, LOW); // Ensure horn is off initially
+  digitalWrite(HORN_MOSFET_PIN, RELAY_OFF); // Ensure horn is off initially
 
   // Setup capacitive touch button for horn
   // Capacitive touch button: GND, VCC, I/O pins
@@ -70,7 +70,7 @@ void activateHorn() {
   if (!hornIsActive) {
     hornIsActive = true;
     hornStartTime = millis();
-    digitalWrite(HORN_MOSFET_PIN, HIGH);
+    digitalWrite(HORN_MOSFET_PIN, RELAY_ON);
     Serial.println("Horn activated!");
   }
 }
@@ -78,7 +78,7 @@ void activateHorn() {
 void deactivateHorn() {
   if (hornIsActive) {
     hornIsActive = false;
-    digitalWrite(HORN_MOSFET_PIN, LOW);
+    digitalWrite(HORN_MOSFET_PIN, RELAY_OFF);
     Serial.println("Horn deactivated!");
   }
 }

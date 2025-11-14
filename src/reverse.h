@@ -2,6 +2,7 @@
 #define REVERSE_H
 
 #include <Arduino.h>
+#include "relay_config.h"
 
 // Reverse gear configuration
 extern const byte REVERSE_GEAR_PIN;

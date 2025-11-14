@@ -2,7 +2,6 @@
 #include "reverse.h"
 #include "horn.h"
 #include "gps.h"
-#include "power_manager.h"
 #include "headlights.h"
 
 void setup() {
@@ -20,11 +19,7 @@ void setup() {
   
   // Initialize GPS module
   setupGPS();
-  Serial.println("GPS module initialized");
-  
-  // Initialize power management system
-  setupPowerManager();
-  Serial.println("Power management system initialized");
+  Serial.println("GPS module initialized"); 
   
   // Initialize headlight system
   setupHeadlights();
@@ -34,9 +29,6 @@ void setup() {
 }
 
 void loop() {
-  // Handle power management
-  handlePowerManager();
-  
   // Handle reverse gear detection, camera activation, and camera controls
   handleReverse();
   

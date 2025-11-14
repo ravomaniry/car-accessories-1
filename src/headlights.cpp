@@ -86,11 +86,11 @@ void setupHeadlights() {
   // Setup joystick pin (analog input)
   pinMode(JOYSTICK_Y_PIN, INPUT);
   
-  // Initialize all lights to OFF
-  digitalWrite(DRL_MOSFET_PIN, LOW);
-  digitalWrite(TAIL_LIGHT_MOSFET_PIN, LOW);
-  digitalWrite(LOW_BEAM_MOSFET_PIN, LOW);
-  digitalWrite(HIGH_BEAM_MOSFET_PIN, LOW);
+  // Initialize all lights to OFF (active low relays)
+  digitalWrite(DRL_MOSFET_PIN, RELAY_OFF);
+  digitalWrite(TAIL_LIGHT_MOSFET_PIN, RELAY_OFF);
+  digitalWrite(LOW_BEAM_MOSFET_PIN, RELAY_OFF);
+  digitalWrite(HIGH_BEAM_MOSFET_PIN, RELAY_OFF);
   
   // Initialize current states
   currentLightLevel = readLightLevel();
@@ -276,7 +276,7 @@ BrightnessLevel getBrightnessLevel() {
 void setDRL(bool state) {
   if (drlActive != state) {
     drlActive = state;
-    digitalWrite(DRL_MOSFET_PIN, state ? HIGH : LOW);
+    digitalWrite(DRL_MOSFET_PIN, state ? RELAY_ON : RELAY_OFF);
     Serial.print("DRL:");
     Serial.println(state ? "1" : "0");
   }
@@ -285,7 +285,7 @@ void setDRL(bool state) {
 void setTailLight(bool state) {
   if (tailLightActive != state) {
     tailLightActive = state;
-    digitalWrite(TAIL_LIGHT_MOSFET_PIN, state ? HIGH : LOW);
+    digitalWrite(TAIL_LIGHT_MOSFET_PIN, state ? RELAY_ON : RELAY_OFF);
     // Note: ESP32 doesn't have a specific TAIL_LIGHT key, so we'll use a custom key
     Serial.print("TAIL_LIGHT:");
     Serial.println(state ? "1" : "0");
@@ -301,13 +301,13 @@ void setBeamMode(BeamMode mode) {
     
     // Set low beam based on mode
     bool lowBeamState = (mode == BEAM_LOW);
-    digitalWrite(LOW_BEAM_MOSFET_PIN, lowBeamState ? HIGH : LOW);
+    digitalWrite(LOW_BEAM_MOSFET_PIN, lowBeamState ? RELAY_ON : RELAY_OFF);
     Serial.print("LOWBEAM:");
     Serial.println(lowBeamState ? "1" : "0");
     
     // Set high beam based on mode
     bool highBeamState = (mode == BEAM_HIGH);
-    digitalWrite(HIGH_BEAM_MOSFET_PIN, highBeamState ? HIGH : LOW);
+    digitalWrite(HIGH_BEAM_MOSFET_PIN, highBeamState ? RELAY_ON : RELAY_OFF);
     Serial.print("HIGHBEAM:");
     Serial.println(highBeamState ? "1" : "0");
     

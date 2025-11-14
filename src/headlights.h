@@ -2,6 +2,7 @@
 #define HEADLIGHTS_H
 
 #include <Arduino.h>
+#include "relay_config.h"
 
 // Headlight configuration
 extern const int PHOTOSENSOR_PIN;        // Photosensitive sensor DO pin

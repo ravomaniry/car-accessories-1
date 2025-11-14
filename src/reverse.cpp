@@ -41,9 +41,9 @@ void setupReverse() {
   reverseLastChangeMillis = millis();
 
   // Setup camera control
-  // Set camera MOSFET pin as output
+  // Set camera relay pin as output
   pinMode(CAMERA_MOSFET_PIN, OUTPUT);
-  digitalWrite(CAMERA_MOSFET_PIN, LOW); // Ensure camera is off initially
+  digitalWrite(CAMERA_MOSFET_PIN, RELAY_OFF); // Ensure camera is off initially
 
   // Set camera button pin as input (capacitive touch button with external pull-up)
   // Capacitive touch button: GND, VCC, I/O pins
@@ -101,7 +101,7 @@ void handleReverse() {
       cameraActivatedByButton = true;
       cameraActivatedByReverse = false;
       cameraStartTime = millis();
-      digitalWrite(CAMERA_MOSFET_PIN, HIGH);
+      digitalWrite(CAMERA_MOSFET_PIN, RELAY_ON);
       Serial.println("Camera activated by capacitive touch button!");
     }
   }
@@ -125,7 +125,7 @@ void handleReverse() {
       cameraIsActive = false;
       cameraActivatedByButton = false;
       cameraActivatedByReverse = false;
-      digitalWrite(CAMERA_MOSFET_PIN, LOW);
+      digitalWrite(CAMERA_MOSFET_PIN, RELAY_OFF);
     }
   }
 
@@ -144,7 +144,7 @@ void activateCameraByReverse() {
     cameraActivatedByReverse = true;
     cameraActivatedByButton = false;
     cameraStartTime = millis();
-    digitalWrite(CAMERA_MOSFET_PIN, HIGH);
+    digitalWrite(CAMERA_MOSFET_PIN, RELAY_ON);
     Serial.println("Camera activated by reverse gear!");
   } else {
     // Camera is already active (e.g., counting down from previous disengagement)

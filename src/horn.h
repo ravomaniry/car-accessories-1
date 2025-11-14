@@ -2,6 +2,7 @@
 #define HORN_H
 
 #include <Arduino.h>
+#include "relay_config.h"
 
 // Horn configuration
 extern const int HORN_BUTTON_PIN;
